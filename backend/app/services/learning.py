@@ -8,7 +8,7 @@ Core rules (from spec):
 - Next card in a topic unlocks only after current is mastered.
 """
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -88,13 +88,59 @@ async def get_next_exercise(db: AsyncSession, card: Card) -> Optional[str]:
 
 def normalize_answer(answer: str) -> str:
     """Normalization for deterministic text comparison."""
-    return " ".join(answer.strip().lower().split())
+    return " ".join(str(answer).strip().lower().split())
 
 
-def check_answer(card: Card, exercise_type: str, answer: str) -> bool:
+def get_steps(card: Card) -> list[str]:
+    """Шаги процедуры: JSON {"steps": [...]} или многострочный текст."""
+    import json
+
+    try:
+        data = json.loads(card.back_content)
+        if isinstance(data, dict) and isinstance(data.get("steps"), list):
+            return [str(s) for s in data["steps"]]
+    except (ValueError, TypeError):
+        pass
+    return [line.strip() for line in card.back_content.splitlines() if line.strip()]
+
+
+def get_blank_answer(card: Card) -> str:
+    """fill_blank: детерминированно скрываем последний токен команды."""
+    tokens = card.back_content.split()
+    return tokens[-1] if tokens else ""
+
+
+def get_fill_blank_template(card: Card) -> str:
+    tokens = card.back_content.split()
+    if len(tokens) < 2:
+        return "{{blank}}"
+    return " ".join(tokens[:-1]) + " {{blank}}"
+
+
+def get_expected_answer(card: Card, exercise_type: str) -> Any:
+    """Правильный ответ для типа упражнения (детерминированно)."""
+    if exercise_type == "reverse_choice":
+        return card.front_content
+    if exercise_type == "fill_blank":
+        return get_blank_answer(card)
+    if exercise_type == "order_steps":
+        return get_steps(card)
+    if exercise_type == "next_step":
+        steps = get_steps(card)
+        return steps[-1] if steps else ""
+    # multiple_choice, text_input, write_command, find_bug
+    return card.back_content
+
+
+def check_answer(card: Card, exercise_type: str, answer: Any) -> bool:
     """Deterministic answer check (no LLM)."""
-    expected = card.back_content
-    # For complex types back_content may be JSON — for MVP compare normalized text
+    expected = get_expected_answer(card, exercise_type)
+    if isinstance(expected, list):
+        if not isinstance(answer, list):
+            return False
+        return [normalize_answer(a) for a in answer] == [
+            normalize_answer(e) for e in expected
+        ]
     return normalize_answer(answer) == normalize_answer(expected)
 
 
@@ -129,11 +175,10 @@ async def record_attempt(
 
     if correct and not used_hint and different_session:
         progress.consecutive_correct += 1
-    else:
-        # Any failure resets the streak; hint use doesn't count but doesn't reset hard
-        if not correct:
-            progress.consecutive_correct = 0
-        # Hint used: don't increment, don't reset (soft)
+    elif used_hint or not correct:
+        # Подсказка или ошибка сбрасывают серию (строго по спеке)
+        progress.consecutive_correct = 0
+    # Верный ответ без подсказки в той же сессии — не засчитывается, серия не ломается
 
     progress.last_attempt_at = now
     progress.last_session_id = session.id
@@ -150,8 +195,9 @@ async def record_attempt(
         if card_mastered and card.status != CardStatus.MASTERED:
             card.status = CardStatus.MASTERED
             await _schedule_first_review(db, card)
-            # Unlock next card in topic
-            await _unlock_next_card(db, card)
+            # Следующая карточка откроется сама: get_current_card берёт
+            # первую LEARNING по order_index. Черновики (DRAFT) в обучение
+            # не поднимаем — только через approve (спека).
 
     await db.commit()
 
@@ -173,19 +219,75 @@ async def _schedule_first_review(db: AsyncSession, card: Card) -> None:
     db.add(review)
 
 
-async def _unlock_next_card(db: AsyncSession, card: Card) -> None:
-    """Moves next draft card in topic to learning status."""
-    result = await db.execute(
-        select(Card)
-        .where(Card.topic_id == card.topic_id)
-        .where(Card.status == CardStatus.DRAFT)
-        .where(Card.order_index > card.order_index)
-        .order_by(Card.order_index)
-        .limit(1)
-    )
-    next_card = result.scalar_one_or_none()
-    if next_card:
-        next_card.status = CardStatus.LEARNING
+async def generate_exercise(db: AsyncSession, card: Card, exercise_type: str) -> dict:
+    """Генерация упражнения (payload зависит от типа). Детерминированная проверка — в check_answer."""
+    import random
+
+    rng = random.Random(f"{card.id}:{exercise_type}")
+
+    if exercise_type == "multiple_choice":
+        distractors = await _distractors(db, card, field="back")
+        options = distractors + [card.back_content]
+        rng.shuffle(options)
+        return {"kind": exercise_type, "payload": {"prompt": card.front_content, "options": options}}
+
+    if exercise_type == "reverse_choice":
+        distractors = await _distractors(db, card, field="front")
+        options = distractors + [card.front_content]
+        rng.shuffle(options)
+        return {"kind": exercise_type, "payload": {"prompt": card.back_content, "options": options}}
+
+    if exercise_type == "text_input":
+        return {"kind": exercise_type, "payload": {"prompt": card.front_content}}
+
+    if exercise_type == "fill_blank":
+        return {
+            "kind": exercise_type,
+            "payload": {
+                "prompt": card.front_content,
+                "template": get_fill_blank_template(card),
+            },
+        }
+
+    if exercise_type == "write_command":
+        return {"kind": exercise_type, "payload": {"prompt": card.front_content}}
+
+    if exercise_type == "find_bug":
+        return {
+            "kind": exercise_type,
+            "payload": {
+                "prompt": f"Найди и исправь ошибку: {card.front_content}",
+            },
+        }
+
+    if exercise_type == "order_steps":
+        steps = get_steps(card)
+        shuffled = steps[:]
+        rng.shuffle(shuffled)
+        return {"kind": exercise_type, "payload": {"prompt": card.front_content, "shuffled_steps": shuffled}}
+
+    if exercise_type == "next_step":
+        steps = get_steps(card)
+        return {
+            "kind": exercise_type,
+            "payload": {"prompt": card.front_content, "given_steps": steps[:-1]},
+        }
+
+    return {"kind": exercise_type, "payload": {"prompt": card.front_content}}
+
+
+async def _distractors(db: AsyncSession, card: Card, field: str, count: int = 3) -> list[str]:
+    """Неправильные варианты из других карточек темы."""
+    col = Card.back_content if field == "back" else Card.front_content
+    correct = card.back_content if field == "back" else card.front_content
+    rows = (
+        await db.scalars(
+            select(col)
+            .where(Card.topic_id == card.topic_id, Card.id != card.id)
+        )
+    ).all()
+    options = [v for v in dict.fromkeys(rows) if normalize_answer(v) != normalize_answer(correct)]
+    return options[:count]
 
 
 async def get_due_reviews(db: AsyncSession, user_id: int) -> list[Card]:
