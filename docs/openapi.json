@@ -553,7 +553,7 @@
           "cards"
         ],
         "summary": "List Drafts",
-        "description": "Все черновики пользователя (status=draft, любой source: ai/mcp).",
+        "description": "Все черновики пользователя (status=draft, любой source).",
         "operationId": "list_drafts_api_cards_drafts_get",
         "responses": {
           "200": {
@@ -624,7 +624,7 @@
           "cards"
         ],
         "summary": "Create Card",
-        "description": "Ручное создание → source=manual, сразу в конец очереди learning.",
+        "description": "Ручное создание → сразу в конец очереди learning.",
         "operationId": "create_card_api_cards_post",
         "requestBody": {
           "content": {

@@ -101,7 +101,7 @@ export interface paths {
         };
         /**
          * List Drafts
-         * @description Все черновики пользователя (status=draft, любой source: ai/mcp).
+         * @description Все черновики пользователя (status=draft, любой source).
          */
         get: operations["list_drafts_api_cards_drafts_get"];
         put?: never;
@@ -123,7 +123,7 @@ export interface paths {
         put?: never;
         /**
          * Create Card
-         * @description Ручное создание → source=manual, сразу в конец очереди learning.
+         * @description Ручное создание → сразу в конец очереди learning.
          */
         post: operations["create_card_api_cards_post"];
         delete?: never;
