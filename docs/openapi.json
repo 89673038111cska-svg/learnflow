@@ -1167,7 +1167,7 @@
           "reviews"
         ],
         "summary": "List Due Reviews",
-        "description": "Карточки к повторению: scheduled_at <= now, не completed.",
+        "description": "Карточки к повторению: scheduled_at <= now, не completed.\n\nПовторы идут параллельно с новым обучением — отдельная очередь.",
         "operationId": "list_due_reviews_api_reviews_due_get",
         "responses": {
           "200": {
@@ -1204,6 +1204,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Unprocessable Entity",
             "content": {
@@ -1213,18 +1223,13 @@
                 }
               }
             }
-          },
-          "501": {
-            "description": "Not Implemented",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
-        }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/reviews/{review_id}/complete": {
@@ -1233,8 +1238,13 @@
           "reviews"
         ],
         "summary": "Complete Review",
-        "description": "success → следующий интервал; fail → карточка обратно в learning.",
+        "description": "success → следующий интервал (1d→3d→7d→14d→30d); fail → карточка обратно в learning.",
         "operationId": "complete_review_api_reviews__review_id__complete_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "review_id",
@@ -1287,6 +1297,16 @@
             },
             "description": "Not Found"
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -1296,16 +1316,6 @@
               }
             },
             "description": "Unprocessable Entity"
-          },
-          "501": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Implemented"
           }
         }
       }
