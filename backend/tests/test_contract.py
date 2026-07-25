@@ -76,12 +76,12 @@ def test_core_schemas_present(openapi_spec):
 
 def test_error_response_format():
     """Единый формат ошибок: {"detail": str, "code": str}."""
-    # 501 от заглушки
+    # 401 без токена
     resp = client.get("/api/topics")
-    assert resp.status_code == 501
+    assert resp.status_code == 401
     body = resp.json()
     assert set(body.keys()) == {"detail", "code"}
-    assert body["code"] == "not_implemented"
+    assert body["code"] == "unauthorized"
 
     # 404 на несуществующий роут
     resp = client.get("/api/nonexistent")
@@ -93,7 +93,7 @@ def test_error_response_format():
 
 def test_validation_error_format():
     """422 тоже в едином формате, без FastAPI-вложенности."""
-    resp = client.post("/api/topics", json={"description": "no name field"})
+    resp = client.post("/api/auth/login", json={"login": "no password field"})
     assert resp.status_code == 422
     body = resp.json()
     assert set(body.keys()) == {"detail", "code"}
