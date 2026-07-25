@@ -52,7 +52,7 @@ class Card(Base):
     __tablename__ = "cards"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"))
+    topic_id: Mapped[int] = mapped_column(ForeignKey("topics.id"), index=True)
     type: Mapped[CardType] = mapped_column(Enum(CardType))
     status: Mapped[CardStatus] = mapped_column(Enum(CardStatus), default=CardStatus.DRAFT)
     source: Mapped[CardSource] = mapped_column(Enum(CardSource), default=CardSource.MANUAL)
@@ -71,7 +71,7 @@ class CardProgress(Base):
     __tablename__ = "card_progress"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id"))
+    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id"), index=True)
     exercise_type: Mapped[str] = mapped_column(String(64))  # multiple_choice, text_input, fill_blank, ...
     consecutive_correct: Mapped[int] = mapped_column(Integer, default=0)
     last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -85,7 +85,7 @@ class Review(Base):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id"))
+    card_id: Mapped[int] = mapped_column(ForeignKey("cards.id"), index=True)
     scheduled_at: Mapped[datetime] = mapped_column(DateTime)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     success: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
@@ -98,6 +98,6 @@ class LearningSession(Base):
     __tablename__ = "learning_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
