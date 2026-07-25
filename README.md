@@ -5,13 +5,41 @@ Stepwise learning app for technical knowledge — strict card sequencing, spaced
 ## Quick Start
 
 ```bash
-# Start all services
-docker-compose up -d
+cp .env.example .env   # заполнить SECRET_KEY, MCP_API_TOKEN, LEARNFLOW_USER_PASSWORD
+docker compose up -d
 
-# Backend API: http://localhost:8000
+# Backend API: http://localhost:8000 (docs: /docs)
 # Frontend: http://localhost:5173
-# PostgreSQL: localhost:5432
+# Логин: $LEARNFLOW_USER_LOGIN / $LEARNFLOW_USER_PASSWORD
 ```
+
+При старте backend автоматически применяет Alembic-миграции и создаёт seed-пользователя (идемпотентно).
+
+### Переменные окружения (.env)
+
+| Var | Назначение |
+|---|---|
+| `SECRET_KEY` | Подпись JWT (обязательно сменить вне dev) |
+| `MCP_API_TOKEN` | Токен агентов для MCP-сервера |
+| `LEARNFLOW_USER_LOGIN` / `LEARNFLOW_USER_PASSWORD` | Seed-пользователь (регистрации нет) |
+
+## Тесты
+
+```bash
+cd backend
+.venv/bin/python -m pytest tests/ -q    # 41 тест: механика, повторы, MCP, CRUD, auth, контракт
+```
+
+Тесты используют отдельную БД `learnflow_test` на том же PostgreSQL (нужен `docker compose up postgres`).
+
+## MCP-сервер (для агентов)
+
+```bash
+cd backend
+LEARNFLOW_MCP_TOKEN=$MCP_API_TOKEN .venv/bin/python -m app.mcp.server
+```
+
+Tools: `add_card_draft`, `list_topics`, `get_learning_status`. Карточки агентов попадают в черновики — учатся только после approve в UI.
 
 ## Project Structure
 
