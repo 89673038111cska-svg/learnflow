@@ -1579,6 +1579,7 @@
             "title": "Kind"
           },
           "payload": {
+            "additionalProperties": true,
             "type": "object",
             "title": "Payload"
           }
