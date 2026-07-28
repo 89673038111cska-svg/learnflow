@@ -190,3 +190,7 @@ class ReviewCompleteResponse(BaseModel):
     card_returned_to_learning: bool = Field(
         default=False, description="При fail — карточка вернулась в обучение"
     )
+
+
+class HintResponse(BaseModel):
+    correct_answer: Any = Field(description="Правильный ответ для текущего упражнения")

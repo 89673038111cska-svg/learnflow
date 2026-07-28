@@ -27,6 +27,7 @@ export type LearningStateResponse = schemas["LearningStateResponse"];
 export type ReviewResponse = schemas["ReviewResponse"];
 export type ReviewCompleteRequest = schemas["ReviewCompleteRequest"];
 export type ReviewCompleteResponse = schemas["ReviewCompleteResponse"];
+export type HintResponse = schemas["HintResponse"];
 export type ErrorResponse = schemas["ErrorResponse"];
 
 export type CardType = schemas["CardType"];
@@ -47,7 +48,7 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
-const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const baseUrl = import.meta.env.VITE_API_URL ?? "http://backend:8000";
 
 export const api = createClient<paths>({
   baseUrl,

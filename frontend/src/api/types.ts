@@ -230,6 +230,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/learning/hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get Hint
+         * @description Получить правильный ответ для текущего упражнения (подсказка).
+         *
+         *     Сбрасывает серию правильных ответов на бэкенде, но не требует от пользователя ответа.
+         *     Используется когда пользователь нажимает кнопку "Подсказка".
+         */
+        post: operations["get_hint_api_learning_hint_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviews/due": {
         parameters: {
             query?: never;
@@ -430,6 +453,14 @@ export interface components {
             used_hint: boolean;
             /** Response Time Ms */
             response_time_ms?: number | null;
+        };
+        /** HintResponse */
+        HintResponse: {
+            /**
+             * Correct Answer
+             * @description Правильный ответ для текущего упражнения
+             */
+            correct_answer: unknown;
         };
         /** LearningStateResponse */
         LearningStateResponse: {
@@ -1426,6 +1457,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AttemptResult"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_hint_api_learning_hint_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExerciseAttempt"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HintResponse"];
                 };
             };
             /** @description Unauthorized */

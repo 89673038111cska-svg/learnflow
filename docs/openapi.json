@@ -1161,6 +1161,83 @@
         ]
       }
     },
+    "/api/learning/hint": {
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "Get Hint",
+        "description": "Получить правильный ответ для текущего упражнения (подсказка).\n\nСбрасывает серию правильных ответов на бэкенде, но не требует от пользователя ответа.\nИспользуется когда пользователь нажимает кнопку \"Подсказка\".",
+        "operationId": "get_hint_api_learning_hint_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExerciseAttempt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HintResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/reviews/due": {
       "get": {
         "tags": [
@@ -1630,6 +1707,19 @@
           "answer"
         ],
         "title": "ExerciseAttempt"
+      },
+      "HintResponse": {
+        "properties": {
+          "correct_answer": {
+            "title": "Correct Answer",
+            "description": "Правильный ответ для текущего упражнения"
+          }
+        },
+        "type": "object",
+        "required": [
+          "correct_answer"
+        ],
+        "title": "HintResponse"
       },
       "LearningStateResponse": {
         "properties": {
