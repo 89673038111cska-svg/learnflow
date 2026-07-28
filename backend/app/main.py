@@ -3,10 +3,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, cards, learning, reviews, topics
 from app.core.errors import register_error_handlers
+from app.core.logging import get_logger, setup_logging
+from app.core.middleware import LoggingMiddleware
+
+setup_logging()
+logger = get_logger("app")
 
 app = FastAPI(title="LearnFlow API", version="0.1.0")
 
 register_error_handlers(app)
+app.add_middleware(LoggingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

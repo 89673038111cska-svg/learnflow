@@ -4,7 +4,13 @@
 Запуск: backend/.venv/bin/python scripts/export_openapi.py
 """
 import json
+import sys
 from pathlib import Path
+
+# Добавляем корень backend в PYTHONPATH для импорта app
+backend_root = Path(__file__).parent.parent
+if str(backend_root) not in sys.path:
+    sys.path.insert(0, str(backend_root))
 
 from fastapi.testclient import TestClient
 

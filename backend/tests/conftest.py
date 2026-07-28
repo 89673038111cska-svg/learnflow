@@ -1,25 +1,37 @@
-"""Shared fixtures: тестовая БД, клиент, пользователь.
+"""Shared fixtures: эфемерный PostgreSQL (testcontainers), клиент, пользователь.
 
-PostgreSQL из docker-compose (порт 5432), отдельная БД learnflow_test.
+Каждый тестовый запуск поднимает свежий PostgreSQL 16 Alpine,
+создаёт таблицы и уничтожает контейнер по завершении.
 NullPool — каждый запрос новое соединение, избегаем event loop конфликтов.
 """
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+from testcontainers.postgres import PostgresContainer
 
-from app.core.config import settings
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
 from app.main import app
 from app.models.models import User
 
-TEST_DB_URL = settings.DATABASE_URL.rsplit("/learnflow", 1)[0] + "/learnflow_test"
+
+@pytest.fixture(scope="session")
+def postgres_container():
+    """Один контейнер PostgreSQL на всю сессию тестов."""
+    with PostgresContainer("postgres:16-alpine") as pc:
+        yield pc
 
 
 @pytest_asyncio.fixture
-async def engine():
-    eng = create_async_engine(TEST_DB_URL, poolclass=NullPool)
+async def engine(postgres_container):
+    """Async-движок к тестовой БД. Таблицы пересоздаются перед каждым тестом."""
+    raw_url = postgres_container.get_connection_url()
+    url = raw_url.replace("postgresql+psycopg2://", "postgresql+asyncpg://")
+    # Убираем query-параметры, если есть
+    url = url.split("?")[0]
+    eng = create_async_engine(url, poolclass=NullPool)
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

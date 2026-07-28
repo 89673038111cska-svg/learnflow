@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.errors import AppError
+from app.core.logging import get_logger
 from app.models.models import Card, CardStatus, CardSource, Topic, User
 from app.schemas.schemas import (
     CardCreate,
@@ -14,6 +15,8 @@ from app.schemas.schemas import (
     DraftActionResponse,
     ErrorResponse,
 )
+
+logger = get_logger("cards")
 
 router = APIRouter()
 
@@ -52,6 +55,7 @@ async def list_drafts(
     current_user: User = Depends(get_current_user),
 ):
     """Все черновики пользователя (status=draft, любой source)."""
+    logger.info("list_drafts", user_id=current_user.id)
     cards = (
         await db.scalars(
             select(Card)
@@ -60,6 +64,7 @@ async def list_drafts(
             .order_by(Card.created_at)
         )
     ).all()
+    logger.info("list_drafts_done", user_id=current_user.id, count=len(cards))
     return cards
 
 
@@ -70,6 +75,7 @@ async def create_card(
     current_user: User = Depends(get_current_user),
 ):
     """Ручное создание → сразу в конец очереди learning."""
+    logger.info("create_card_start", user_id=current_user.id, topic_id=body.topic_id)
     topic = await db.scalar(
         select(Topic).where(Topic.id == body.topic_id, Topic.user_id == current_user.id)
     )
@@ -88,6 +94,7 @@ async def create_card(
     db.add(card)
     await db.commit()
     await db.refresh(card)
+    logger.info("create_card_done", user_id=current_user.id, card_id=card.id)
     return card
 
 
@@ -98,8 +105,10 @@ async def update_card(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("update_card_start", user_id=current_user.id, card_id=card_id)
     card = await _get_user_card(db, card_id, current_user.id)
     if card is None:
+        logger.warning("update_card_not_found", user_id=current_user.id, card_id=card_id)
         raise CARD_NOT_FOUND
 
     if body.front_content is not None:
@@ -109,6 +118,7 @@ async def update_card(
 
     await db.commit()
     await db.refresh(card)
+    logger.info("update_card_done", user_id=current_user.id, card_id=card_id)
     return card
 
 
@@ -118,12 +128,15 @@ async def delete_card(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("delete_card_start", user_id=current_user.id, card_id=card_id)
     card = await _get_user_card(db, card_id, current_user.id)
     if card is None:
+        logger.warning("delete_card_not_found", user_id=current_user.id, card_id=card_id)
         raise CARD_NOT_FOUND
 
     await db.execute(delete(Card).where(Card.id == card_id))
     await db.commit()
+    logger.info("delete_card_done", user_id=current_user.id, card_id=card_id)
 
 
 @router.post("/{card_id}/approve", response_model=DraftActionResponse, responses=ERROR_RESPONSES)
@@ -133,15 +146,19 @@ async def approve_card(
     current_user: User = Depends(get_current_user),
 ):
     """draft → learning (в конец очереди темы)."""
+    logger.info("approve_card_start", user_id=current_user.id, card_id=card_id)
     card = await _get_user_card(db, card_id, current_user.id)
     if card is None:
+        logger.warning("approve_card_not_found", user_id=current_user.id, card_id=card_id)
         raise CARD_NOT_FOUND
     if card.status != CardStatus.DRAFT:
+        logger.warning("approve_card_not_draft", user_id=current_user.id, card_id=card_id, status=card.status)
         raise NOT_DRAFT
 
     card.status = CardStatus.LEARNING
     card.order_index = await _next_order_index(db, card.topic_id)
     await db.commit()
+    logger.info("approve_card_done", user_id=current_user.id, card_id=card_id)
 
     return DraftActionResponse(
         id=card.id, status=card.status, message="Card approved and moved to learning"
@@ -155,14 +172,18 @@ async def reject_card(
     current_user: User = Depends(get_current_user),
 ):
     """Удаление черновика."""
+    logger.info("reject_card_start", user_id=current_user.id, card_id=card_id)
     card = await _get_user_card(db, card_id, current_user.id)
     if card is None:
+        logger.warning("reject_card_not_found", user_id=current_user.id, card_id=card_id)
         raise CARD_NOT_FOUND
     if card.status != CardStatus.DRAFT:
+        logger.warning("reject_card_not_draft", user_id=current_user.id, card_id=card_id, status=card.status)
         raise NOT_DRAFT
 
     await db.execute(delete(Card).where(Card.id == card_id))
     await db.commit()
+    logger.info("reject_card_done", user_id=current_user.id, card_id=card_id)
 
     return DraftActionResponse(
         id=card_id, status=CardStatus.DRAFT, message="Draft rejected and deleted"

@@ -6,8 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.errors import AppError
+from app.core.logging import get_logger
 from app.models.models import Card, CardStatus, Topic, User
 from app.schemas.schemas import ErrorResponse, TopicCreate, TopicResponse, TopicUpdate
+
+logger = get_logger("topics")
 
 router = APIRouter()
 
@@ -48,12 +51,15 @@ async def list_topics(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("list_topics", user_id=current_user.id)
     topics = (
         await db.scalars(
             select(Topic).where(Topic.user_id == current_user.id).order_by(Topic.id)
         )
     ).all()
-    return [await _topic_with_counts(db, t) for t in topics]
+    result = [await _topic_with_counts(db, t) for t in topics]
+    logger.info("list_topics_done", user_id=current_user.id, count=len(result))
+    return result
 
 
 @router.post("", response_model=TopicResponse, status_code=201, responses=ERROR_RESPONSES)
@@ -62,13 +68,16 @@ async def create_topic(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("create_topic_start", user_id=current_user.id, name=body.name)
     topic = Topic(
         user_id=current_user.id, name=body.name, description=body.description
     )
     db.add(topic)
     await db.commit()
     await db.refresh(topic)
-    return await _topic_with_counts(db, topic)
+    result = await _topic_with_counts(db, topic)
+    logger.info("create_topic_done", user_id=current_user.id, topic_id=topic.id)
+    return result
 
 
 @router.get("/{topic_id}", response_model=TopicResponse, responses=ERROR_RESPONSES)
@@ -77,10 +86,12 @@ async def get_topic(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("get_topic", user_id=current_user.id, topic_id=topic_id)
     topic = await db.scalar(
         select(Topic).where(Topic.id == topic_id, Topic.user_id == current_user.id)
     )
     if topic is None:
+        logger.warning("get_topic_not_found", user_id=current_user.id, topic_id=topic_id)
         raise TOPIC_NOT_FOUND
     return await _topic_with_counts(db, topic)
 
@@ -92,10 +103,12 @@ async def update_topic(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("update_topic_start", user_id=current_user.id, topic_id=topic_id)
     topic = await db.scalar(
         select(Topic).where(Topic.id == topic_id, Topic.user_id == current_user.id)
     )
     if topic is None:
+        logger.warning("update_topic_not_found", user_id=current_user.id, topic_id=topic_id)
         raise TOPIC_NOT_FOUND
 
     if body.name is not None:
@@ -105,7 +118,9 @@ async def update_topic(
 
     await db.commit()
     await db.refresh(topic)
-    return await _topic_with_counts(db, topic)
+    result = await _topic_with_counts(db, topic)
+    logger.info("update_topic_done", user_id=current_user.id, topic_id=topic_id)
+    return result
 
 
 @router.delete("/{topic_id}", status_code=204, responses=ERROR_RESPONSES)
@@ -114,17 +129,21 @@ async def delete_topic(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    logger.info("delete_topic_start", user_id=current_user.id, topic_id=topic_id)
     topic = await db.scalar(
         select(Topic).where(Topic.id == topic_id, Topic.user_id == current_user.id)
     )
     if topic is None:
+        logger.warning("delete_topic_not_found", user_id=current_user.id, topic_id=topic_id)
         raise TOPIC_NOT_FOUND
 
     has_cards = await db.scalar(
         select(func.count(Card.id)).where(Card.topic_id == topic_id)
     )
     if has_cards:
+        logger.warning("delete_topic_not_empty", user_id=current_user.id, topic_id=topic_id, cards_count=has_cards)
         raise TOPIC_NOT_EMPTY
 
     await db.execute(delete(Topic).where(Topic.id == topic_id))
     await db.commit()
+    logger.info("delete_topic_done", user_id=current_user.id, topic_id=topic_id)

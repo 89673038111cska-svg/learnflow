@@ -167,18 +167,11 @@ async def record_attempt(
 
     now = datetime.utcnow()
 
-    # "Different session" check: last attempt must be from another session
-    different_session = (
-        progress.last_session_id is None
-        or progress.last_session_id != session.id
-    )
-
-    if correct and not used_hint and different_session:
+    if correct and not used_hint:
         progress.consecutive_correct += 1
     elif used_hint or not correct:
         # Подсказка или ошибка сбрасывают серию (строго по спеке)
         progress.consecutive_correct = 0
-    # Верный ответ без подсказки в той же сессии — не засчитывается, серия не ломается
 
     progress.last_attempt_at = now
     progress.last_session_id = session.id

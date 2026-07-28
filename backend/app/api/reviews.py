@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.errors import AppError
+from app.core.logging import get_logger
 from app.models.models import Card, Review, Topic, User
 from app.schemas.schemas import (
     CardResponse,
@@ -17,6 +18,8 @@ from app.schemas.schemas import (
     ReviewResponse,
 )
 from app.services import learning as svc
+
+logger = get_logger("reviews")
 
 router = APIRouter()
 
@@ -40,6 +43,7 @@ async def list_due_reviews(
 
     Повторы идут параллельно с новым обучением — отдельная очередь.
     """
+    logger.info("list_due_reviews", user_id=current_user.id)
     from datetime import datetime
 
     reviews = (
@@ -68,6 +72,7 @@ async def list_due_reviews(
                 card=CardResponse.model_validate(card) if card else None,
             )
         )
+    logger.info("list_due_reviews_done", user_id=current_user.id, count=len(result))
     return result
 
 
@@ -83,6 +88,7 @@ async def complete_review(
     current_user: User = Depends(get_current_user),
 ):
     """success → следующий интервал (1d→3d→7d→14d→30d); fail → карточка обратно в learning."""
+    logger.info("complete_review_start", user_id=current_user.id, review_id=review_id, success=body.success)
     review = await db.scalar(
         select(Review)
         .join(Card, Review.card_id == Card.id)
@@ -90,8 +96,10 @@ async def complete_review(
         .where(Review.id == review_id, Topic.user_id == current_user.id)
     )
     if review is None:
+        logger.warning("complete_review_not_found", user_id=current_user.id, review_id=review_id)
         raise REVIEW_NOT_FOUND
     if review.completed_at is not None:
+        logger.warning("complete_review_already_done", user_id=current_user.id, review_id=review_id)
         raise REVIEW_ALREADY_DONE
 
     card = await db.scalar(select(Card).where(Card.id == review.card_id))
@@ -108,6 +116,7 @@ async def complete_review(
         )
         next_review_at = nxt.scheduled_at if nxt else None
 
+    logger.info("complete_review_done", user_id=current_user.id, review_id=review_id, card_id=card.id, returned_to_learning=not body.success)
     return ReviewCompleteResponse(
         id=review.id,
         card_id=card.id,
