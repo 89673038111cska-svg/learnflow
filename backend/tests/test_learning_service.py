@@ -287,7 +287,7 @@ class TestServiceWithDB:
             assert r2["consecutive_correct"] == 0
 
     @pytest.mark.asyncio
-    async def test_record_attempt_increments_in_same_session(self, session_maker, test_user):
+    async def test_record_attempt_same_session_does_not_increment(self, session_maker, test_user):
         async with session_maker() as s:
             topic = Topic(user_id=test_user.id, name="Test")
             s.add(topic)
@@ -299,9 +299,9 @@ class TestServiceWithDB:
             await s.flush()
             r1 = await svc.record_attempt(s, card, "multiple_choice", True, False, session)
             assert r1["consecutive_correct"] == 1
-            # Та же сессия — теперь засчитывается
+            # Та же сессия — не засчитывается, но серия не ломается
             r2 = await svc.record_attempt(s, card, "multiple_choice", True, False, session)
-            assert r2["consecutive_correct"] == 2
+            assert r2["consecutive_correct"] == 1
 
     @pytest.mark.asyncio
     async def test_record_attempt_wrong_resets_streak(self, session_maker, test_user):

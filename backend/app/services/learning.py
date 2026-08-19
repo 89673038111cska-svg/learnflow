@@ -167,7 +167,14 @@ async def record_attempt(
 
     now = datetime.utcnow()
 
-    if correct and not used_hint:
+    # "Different session" check: засчитываем один верный ответ на упражнение
+    # за сессию — повторные верные в той же сессии серию не растят и не ломают
+    different_session = (
+        progress.last_session_id is None
+        or progress.last_session_id != session.id
+    )
+
+    if correct and not used_hint and different_session:
         progress.consecutive_correct += 1
     elif used_hint or not correct:
         # Подсказка или ошибка сбрасывают серию (строго по спеке)
